@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+usage() {
+    cat <<'EOF'
+Usage:
+  scripts/publish.sh [--check|--dry-run]
+
+By default this builds, validates, and uploads the current pyproject.toml
+version to PyPI. Use --check or --dry-run to build and validate without
+uploading.
+EOF
+}
+
 version="$(python3 - <<'PY'
 try:
     import tomllib
@@ -11,6 +22,25 @@ with open("pyproject.toml", "r", encoding="utf-8") as handle:
     print(tomllib.loads(handle.read())["project"]["version"])
 PY
 )"
+
+upload=true
+case "${1:-}" in
+    "")
+        ;;
+    "--upload")
+        ;;
+    "--check"|"--dry-run")
+        upload=false
+        ;;
+    "-h"|"--help")
+        usage
+        exit 0
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
 
 has_pypirc_credentials() {
     local pypirc="${PYPIRC_PATH:-$HOME/.pypirc}"
@@ -51,11 +81,10 @@ ensure_pypi_credentials() {
 
 python3 -m build
 python3 -m twine check "dist/torbot-${version}"*
-if [[ "${1:-}" == "--upload" ]]; then
+if [[ "$upload" == true ]]; then
     ensure_pypi_credentials
     python3 -m twine upload "dist/torbot-${version}"*
 else
-    echo "Publishing is ready. Run the following when you have your PyPI token:"
-    echo "python3 -m twine upload dist/torbot-${version}*"
-    echo "Or run: scripts/publish.sh --upload"
+    echo "Package artifacts for torbot ${version} are ready."
+    echo "Run scripts/publish.sh to upload them to PyPI."
 fi
